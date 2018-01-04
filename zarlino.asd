@@ -9,5 +9,5 @@
                #:qtgui
                #:fluidsynth)
   :serial t
-  :components ((:file "package")
+  :components ((:file "synth")
                (:file "zarlino")))

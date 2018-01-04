@@ -1,17 +1,32 @@
+(in-package #:cl-user)
+
+(defpackage #:zarlino.synth
+  (:use #:cl)
+  (:export #:note-on
+           #:notes-on
+           #:note-off
+           #:notes-off
+           #:get-instrument
+           #:set-instrument
+           #:get-tuning
+           #:set-tuning))
+
 (in-package #:zarlino.synth)
 
-(defconstant +num-midi-notes+ 128)
-
 (defvar *settings* (fluidsynth:new-settings '(("synth.polyphony" 128)
-                                              ("audio.driver" "pulseaudio"))))
+                                              ("audio.driver" "alsa"))))
 
 (defvar *synth* (fluidsynth:new-synth *settings*))
 
-(let ((sf-path "/usr/share/sounds/sf2/FluidR3_GM.sf2"))
-  (if (probe-file sf-path)
-      (fluidsynth:sfload *synth* sf-path 1)))
+(defun load-soundfont (path)
+  (if (probe-file path)
+      (fluidsynth:sfload *synth* path 1)))
+
+(load-soundfont "/usr/share/sounds/sf2/FluidR3_GM.sf2")
 
 (defvar *audio-driver* (fluidsynth:new-audio-driver *settings* *synth*))
+
+(defvar *player* (fluidsynth:new-player *synth*))
 
 (defvar *instrument* 0)
 
@@ -36,6 +51,8 @@
 
 ;; tuning
 
+(defconstant +num-midi-notes+ 128)
+
 (defconstant +just-intervals+
   '(1 16/15 9/8 6/5 5/4 4/3 65/45 3/2 8/5 5/3 16/9 15/8 2))
 
@@ -43,13 +60,7 @@
   '(1 256/243 9/8 32/27 81/64 4/3 729/512 3/2 128/81 27/16 16/9 243/128 2))
 
 (defconstant +equal-intervals+
-  (loop for i from 0 to 12 collect (expt 2 (/ i 12))))
-
-(defun interval (cents)
-  (expt 10 (/ cents (/ 1200 (log 2 10)))))
-
-(defun cents (interval)
-  (* 1200 (/ (log interval 10) (log 2 10))))
+  (loop for i to 12 collect (expt 2 (/ i 12))))
 
 (defun cent-difference (freq-1 freq-2)
   (* 1200 (log (/ freq-2 freq-1) 2)))
@@ -80,19 +91,57 @@
     (cffi:with-foreign-object (pitches :double +num-midi-notes+)
       (dotimes (i +num-midi-notes+)
         (setf (cffi:mem-aref pitches :double i) (nth i tuning)))
-      (fluidsynth:create-key-tuning *synth* 0 0 name pitches) ;deprecated?
+      (fluidsynth:activate-key-tuning *synth* 0 0 name pitches 0)
       (fluidsynth:activate-tuning *synth* 0 0 0 1))))
 
 (defun get-tuning ()
-  (cffi:with-foreign-objects ((name :char 16)
+  (cffi:with-foreign-objects ((name :char +num-midi-notes+)
                               (pitches :double +num-midi-notes+))
     (fluidsynth:tuning-dump *synth* 0 0 name +num-midi-notes+ pitches)
     (loop for i below +num-midi-notes+
           collect (cffi:mem-aref pitches :double i))))
 
-(defun set-tuning (temperament &optional (a4-freq 440))
+(defun set-tuning (&key (temperament :equal) (a4-freq 440))
   (case temperament
     (:equal (tune-notes "equal" (make-tuning +equal-intervals+ a4-freq)))
     (:just (tune-notes "just" (make-tuning +just-intervals+ a4-freq)))
     (:pythagorean (tune-notes "pythagorean"
                               (make-tuning +pythagorean-intervals+ a4-freq)))))
+
+;; midi player
+
+(defun load-midi-file (path)
+  (if (probe-file path)
+      (zerop (fluidsynth:player-add *player* path))))
+
+(defun seek (ticks)
+  (fluidsynth:player-seek *player* ticks))
+
+(defun current-tick ()
+  (fluidsynth:player-get-current-tick *player*))
+
+(defun play ()
+  (fluidsynth:player-play *player*))
+
+(defun stop ()
+  (fluidsynth:player-stop *player*)
+  (seek (current-tick)))
+
+(defun set-bpm (bpm)
+  (fluidsynth:player-set-bpm *player* bpm))
+
+(defun get-tempo ()
+  (fluidsynth:player-get-bpm *player*))
+
+(defun get-total-ticks ()
+  (fluidsynth:player-get-total-ticks *player*))
+
+;; (fluidsynth:player-set-loop *player* 1)
+
+;; (load-midi-file "resources/midi/bwv848a.mid")
+
+;; #:player-join
+;; #:player-set-loop
+;; #:player-set-midi-tempo
+;; #:player-get-status
+;; #:player-get-midi-tempo
