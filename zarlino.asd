@@ -10,4 +10,4 @@
                #:fluidsynth)
   :serial t
   :components ((:file "synth")
-               (:file "zarlino")))
+               (:file "gui")))

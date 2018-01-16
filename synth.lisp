@@ -9,11 +9,20 @@
            #:get-instrument
            #:set-instrument
            #:get-tuning
-           #:set-tuning))
+           #:set-tuning
+	   #:load-midi-file
+	   #:seek
+	   #:current-tick
+	   #:play
+	   #:pause
+	   #:stop
+	   #:set-bpm
+	   #:get-tempo
+	   #:get-total-ticks))
 
 (in-package #:zarlino.synth)
 
-(defvar *settings* (fluidsynth:new-settings '(("synth.polyphony" 128)
+(defvar *settings* (fluidsynth:new-settings '(("synth.polyphony" 256)
                                               ("audio.driver" "alsa"))))
 
 (defvar *synth* (fluidsynth:new-synth *settings*))
@@ -123,9 +132,13 @@
 (defun play ()
   (fluidsynth:player-play *player*))
 
-(defun stop ()
+(defun pause ()
   (fluidsynth:player-stop *player*)
   (seek (current-tick)))
+
+(defun stop ()
+  (fluidsynth:player-stop *player*)
+  (seek 0))
 
 (defun set-bpm (bpm)
   (fluidsynth:player-set-bpm *player* bpm))
